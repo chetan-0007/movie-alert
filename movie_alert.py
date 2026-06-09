@@ -4,18 +4,26 @@ from pathlib import Path
 from datetime import datetime
 import os
 
+# =========================
+# CONFIG
+# =========================
+
+MOVIE_NAME = "odyssey"
+CINEMA_NAME = "PVR Priya IMAX"
+SHOW_DATE = "2026-07-17"
+
+STATE_FILE = "state.json"
+
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 CHAT_ID = os.environ["CHAT_ID"]
 DISTRICT_GUEST_TOKEN = os.environ["DISTRICT_GUEST_TOKEN"]
 
-url = "https://www.district.in/gw/consumer/movies/v3/cinema"
-
-movie_name = "odyssey"
-state_file = "state.json"
-
+# =========================
+# TELEGRAM
+# =========================
 
 def send_telegram(message):
-    requests.post(
+    response = requests.post(
         f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
         json={
             "chat_id": CHAT_ID,
@@ -23,7 +31,14 @@ def send_telegram(message):
         }
     )
 
-# send_telegram("🚀 Movie Show Monitor Started! 🚀")
+    print("Telegram:", response.status_code)
+
+
+# =========================
+# DISTRICT API
+# =========================
+
+url = "https://www.district.in/gw/consumer/movies/v3/cinema"
 
 params = {
     "meta": 1,
@@ -34,7 +49,7 @@ params = {
     "child_site_id": 1,
     "platform": "district",
     "cinemaId": "1022246",
-    "date": "2026-07-17"
+    "date": SHOW_DATE
 }
 
 headers = {
@@ -44,23 +59,50 @@ headers = {
     "user-agent": "Mozilla/5.0"
 }
 
-r = requests.get(url, params=params, headers=headers)
+print("Calling District API...")
+
+r = requests.get(
+    url,
+    params=params,
+    headers=headers,
+    timeout=30
+)
+
+print("Status:", r.status_code)
+
+if r.status_code != 200:
+    send_telegram(
+        f"⚠️ Movie Alert Bot Error\n"
+        f"Status Code: {r.status_code}"
+    )
+    raise Exception(f"District API failed: {r.status_code}")
+
 data = r.json()
 
-# Find movie
+# =========================
+# FIND MOVIE
+# =========================
+
 movie = next(
     (
         m for m in data["meta"]["movies"]
-        if movie_name.lower() in m["name"].lower()
+        if MOVIE_NAME.lower() in m["name"].lower()
     ),
     None
 )
 
-if not movie:
-    print("Movie not found")
-    exit()
+if movie is None:
+    send_telegram(
+        f"⚠️ Movie not found: {MOVIE_NAME}"
+    )
+    raise Exception("Movie not found")
 
-# Get sessions for this movie
+print("Movie Found:", movie["name"])
+
+# =========================
+# FIND SESSIONS
+# =========================
+
 sessions = [
     s for s in data["pageData"]["sessions"]
     if s["mid"] == movie["id"]
@@ -68,33 +110,71 @@ sessions = [
 
 current_ids = {s["sid"] for s in sessions}
 
-# First run
-if not Path(state_file).exists():
-    with open(state_file, "w") as f:
+print("Current Sessions:", current_ids)
+
+# =========================
+# FIRST RUN
+# =========================
+
+if not Path(STATE_FILE).exists():
+
+    with open(STATE_FILE, "w") as f:
         json.dump(list(current_ids), f)
 
-    print("Baseline saved")
+    print("Baseline created")
+
     exit()
 
-# Load previous state
-with open(state_file) as f:
+# =========================
+# LOAD OLD STATE
+# =========================
+
+with open(STATE_FILE) as f:
     previous_ids = set(json.load(f))
+
+# empty file
+if len(previous_ids) == 0:
+
+    with open(STATE_FILE, "w") as f:
+        json.dump(list(current_ids), f)
+
+    print("Baseline initialized")
+
+    exit()
+
+print("Previous Sessions:", previous_ids)
+
+# =========================
+# NEW SHOW DETECTION
+# =========================
 
 new_ids = current_ids - previous_ids
 
+print("New Sessions:", new_ids)
+
 if new_ids:
-    print("🚨 New show(s) added!")
 
     for s in sessions:
-        if s["sid"] in new_ids:
-            show_time = datetime.fromisoformat(s["showTime"])
 
-            send_telegram(
-                f"🎬 New Odyssey Show!\n\n"
-                f"📍 PVR Priya IMAX\n"
-                f"🕒 {show_time.strftime('%I:%M %p')}"
+        if s["sid"] in new_ids:
+
+            show_time = datetime.fromisoformat(
+                s["showTime"]
             )
 
-# Save latest state
-with open(state_file, "w") as f:
+            send_telegram(
+                f"🎬 New Show Added!\n\n"
+                f"Movie: {movie['name']}\n"
+                f"Cinema: {CINEMA_NAME}\n"
+                f"Date: {show_time.strftime('%d %b %Y')}\n"
+                f"Time: {show_time.strftime('%I:%M %p')}"
+            )
+
+# =========================
+# SAVE NEW STATE
+# =========================
+
+with open(STATE_FILE, "w") as f:
     json.dump(list(current_ids), f)
+
+print("State Updated")
