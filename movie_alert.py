@@ -2,14 +2,17 @@ import requests
 import json
 from pathlib import Path
 from datetime import datetime
+import os
+
+BOT_TOKEN = os.environ["BOT_TOKEN"]
+CHAT_ID = os.environ["CHAT_ID"]
+DISTRICT_GUEST_TOKEN = os.environ["DISTRICT_GUEST_TOKEN"]
 
 url = "https://www.district.in/gw/consumer/movies/v3/cinema"
 
 movie_name = "odyssey"
 state_file = "state.json"
 
-BOT_TOKEN = "8759182989:AAEEf64OJZhdQcA8BDgXj2wJudc2QYutJno"
-CHAT_ID = "862825070"
 
 def send_telegram(message):
     requests.post(
@@ -37,7 +40,7 @@ params = {
 headers = {
     "api_source": "district",
     "x-app-type": "ed_mweb",
-    "x-guest-token": "1780938224940_156460542301467100_r9s6uqbyqt",
+    "x-guest-token": DISTRICT_GUEST_TOKEN,
     "user-agent": "Mozilla/5.0"
 }
 
