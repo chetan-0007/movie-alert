@@ -31,14 +31,6 @@ def send_telegram(message):
         }
     )
 
-    print("Telegram:", response.status_code)
-
-
-# =========================
-# DISTRICT API
-# =========================
-
-url = "https://www.district.in/gw/consumer/movies/v3/cinema"
 
 params = {
     "meta": 1,
@@ -176,5 +168,3 @@ if new_ids:
 
 with open(STATE_FILE, "w") as f:
     json.dump(list(current_ids), f)
-
-print("State Updated")
