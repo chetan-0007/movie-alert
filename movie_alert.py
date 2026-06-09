@@ -23,7 +23,7 @@ def send_telegram(message):
         }
     )
 
-# send_telegram("🚀 Movie Show Monitor Started! 🚀")
+send_telegram("GitHub Action works!")
 
 params = {
     "meta": 1,
