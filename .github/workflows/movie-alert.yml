@@ -1,44 +1,72 @@
-name: Movie Alert
+name: Movie alerts
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
-
+    - cron: "17 * * * *"
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: movie-alert
+  cancel-in-progress: false
 
 jobs:
-  check:
+  check-shows:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Restore and save watcher state
+        uses: actions/cache@v4
+        with:
+          path: state.json
+          key: movie-alert-state-${{ github.run_id }}
+          restore-keys: movie-alert-state-
+
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.12"
 
-      - name: Install Dependencies
-        run: pip install requests
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
 
-      - name: Run Bot
+      - name: Create config file
         env:
+          MOVIE_NAME: ${{ vars.MOVIE_NAME }}
+          CINEMA_NAME: ${{ vars.CINEMA_NAME }}
+          SHOW_DATE: ${{ vars.SHOW_DATE }}
+          CINEMA_ID: ${{ vars.CINEMA_ID }}
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
           DISTRICT_GUEST_TOKEN: ${{ secrets.DISTRICT_GUEST_TOKEN }}
-        run: python movie_alert.py
-
-      - name: Commit State
         run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
+          python - <<'PY'
+          import configparser
+          import os
 
-          git add state.json
+          config = configparser.ConfigParser()
+          config["movie"] = {
+              "name": os.environ["MOVIE_NAME"],
+              "cinema_name": os.environ["CINEMA_NAME"],
+              "show_date": os.environ["SHOW_DATE"],
+              "cinema_id": os.environ["CINEMA_ID"],
+          }
+          config["telegram"] = {
+              "bot_token": os.environ["BOT_TOKEN"],
+              "chat_id": os.environ["CHAT_ID"],
+          }
+          config["district"] = {
+              "guest_token": os.environ["DISTRICT_GUEST_TOKEN"],
+          }
 
-          git diff --cached --quiet || git commit -m "update state"
+          with open("config.ini", "w", encoding="utf-8") as file:
+              config.write(file)
+          PY
 
-          git push
+      - name: Check for new shows
+        run: python movie_alert.py
