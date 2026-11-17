@@ -56,6 +56,8 @@ def fetch_movie_data():
     print(f"District status: {response.status_code}")
 
     if response.status_code != 200:
+        print("Response headers:", dict(response.headers))
+        print("Response body:", response.text[:800])
         send_telegram(f"⚠️ Movie Alert Error\nStatus Code: {response.status_code}")
         raise RuntimeError(f"District API failed: {response.status_code}")
 
