@@ -213,6 +213,11 @@ def main():
     print(f"Dates checked: {sorted(by_date)} | failed: {failed}")
     print(f"Current sessions: {len(current)}")
 
+    if state is None and failed:
+        # Never create a baseline from a partial or failed fetch.
+        print("First run but some dates failed; not saving a baseline.")
+        sys.exit(1)
+
     if state is None:  # first ever run: silent baseline (may be empty)
         save_state(
             {
